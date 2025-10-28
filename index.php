@@ -40,31 +40,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (!csrf_verify($csrf)) { http_response_code(403); exit('Invalid CSRF token'); }
 
   $action = $_POST['action'] ?? null;
+  $xhr = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '');
 
   if ($action === 'add') {
     $nick = $_POST['nick'] ?? 'Anon';
     $msg  = $_POST['msg']  ?? '';
     $uid  = findOrCreateUser($pdo, $nick);
-    addMessage($pdo, $uid, $msg);
+    $messageId = addMessage($pdo, $uid, $msg);
     $_SESSION['last'] = $msg ?: null;
 
-    // AJAX response
-    $xhr = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '');
     if ($xhr) {
-      $id  = (int)$pdo->lastInsertId();
-      $row = getMessage($pdo, $id) ?: ['id'=>$id,'body'=>$msg,'created_at'=>date('c'),'nickname'=>$nick,'upvotes'=>0,'downvotes'=>0];
       header('Content-Type: application/json');
-      echo json_encode(['ok'=>true,'message'=>$row]);
+      if ($messageId) {
+        $row = getMessage($pdo, $messageId);
+        echo json_encode(['ok'=>true,'message'=>$row]);
+      } else {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'Unable to save message.']);
+      }
       exit;
     }
-    // Non-AJAX → PRG
-    prg_redirect();
+
+    if ($messageId) {
+      prg_redirect();
+    }
+    http_response_code(400);
+    exit('Unable to save message.');
+  }
+  elseif ($action === 'comment') {
+    $messageId = (int)($_POST['message_id'] ?? 0);
+    $nick = $_POST['nick'] ?? 'Anon';
+    $body = $_POST['body'] ?? '';
+
+    $comment = addComment($pdo, $messageId, $nick, $body);
+
+    if ($xhr) {
+      header('Content-Type: application/json');
+      if ($comment) {
+        echo json_encode(['ok'=>true,'comment'=>$comment]);
+      } else {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'Unable to save comment.']);
+      }
+      exit;
+    }
+
+    if ($comment) {
+      prg_redirect();
+    }
+
+    http_response_code(400);
+    exit('Unable to save comment.');
   }
   elseif ($action === 'delete') {
     $id = (int)($_POST['id'] ?? 0);
     if ($id > 0) deleteMessage($pdo, $id);
 
-    $xhr = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '');
     if ($xhr) {
       header('Content-Type: application/json');
       echo json_encode(['ok'=>true,'deleted'=>$id]);
@@ -77,7 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $type = $_POST['type'] ?? 'up';
     reactMessage($pdo, $id, $type === 'down' ? 'down' : 'up');
 
-    $xhr = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '');
     if ($xhr) {
       $s = $pdo->prepare('SELECT upvotes, downvotes FROM messages WHERE id = ?');
       $s->execute([$id]);
