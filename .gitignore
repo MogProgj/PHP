@@ -1,0 +1,28 @@
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+
+# PHP / local runtime
+vendor/
+composer.lock
+composer.phar
+
+# Build/cache (if any)
+node_modules/
+dist/
+build/
+.cache/
+
+# Env & secrets
+.env
+.env.* 
+config.local.php
+config.dev.php
+config.php        # <-- if this file has DB passwords, keep it ignored!
+
+# Logs & uploads
+*.log
+logs/
+storage/
+uploads/
