@@ -60,6 +60,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Non-AJAX → PRG
     prg_redirect();
   }
+  elseif ($action === 'comment') {
+    $messageId = (int)($_POST['message_id'] ?? 0);
+    $nick = $_POST['nick'] ?? 'Anon';
+    $body = $_POST['body'] ?? '';
+
+    $comment = addComment($pdo, $messageId, $nick, $body);
+    $xhr = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '');
+
+    if ($xhr) {
+      header('Content-Type: application/json');
+      if ($comment) {
+        echo json_encode(['ok' => true, 'comment' => $comment]);
+      } else {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Unable to save comment.']);
+      }
+      exit;
+    }
+
+    if ($comment) {
+      prg_redirect();
+    }
+
+    http_response_code(400);
+    exit('Unable to save comment.');
+  }
   elseif ($action === 'delete') {
     $id = (int)($_POST['id'] ?? 0);
     if ($id > 0) deleteMessage($pdo, $id);
