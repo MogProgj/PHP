@@ -1,145 +1,117 @@
 // assets/app.js
-// Core interactivity for Cave of Conspiracies.
-// Keeps mutation work small to avoid layout thrash and jank.
+document.addEventListener('DOMContentLoaded', () => {
+  /* ------------------ THEME PICKER (data-theme + localStorage) ------------------ */
+  const picker = document.getElementById('themePicker');
 
-const htmlUtils = (() => {
-  const escapeMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  const escaper = /[&<>"']/g;
-  return {
-    escape(value = '') {
-      return String(value).replace(escaper, (char) => escapeMap[char] ?? char);
-    },
-    nl2br(value = '') {
-      return String(value).replace(/\n/g, '<br>');
-    }
+  const setTheme = (t) => {
+    document.body.setAttribute('data-theme', t);
+    try { localStorage.setItem('theme', t); } catch {}
   };
-})();
 
-function showToast(text, danger = false) {
-  const toast = document.createElement('div');
-  toast.className = `toast ${danger ? 'toast--danger' : 'toast--ok'}`;
-  toast.textContent = text;
-  document.body.appendChild(toast);
+  const saved = (() => {
+    try { return localStorage.getItem('theme'); } catch { return null; }
+  })() || 'dark';
+/* Button ripple position (so ripple starts under cursor) */
+document.addEventListener('pointerdown', (e)=>{
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const rect = btn.getBoundingClientRect();
+  btn.style.setProperty('--rx', `${e.clientX - rect.left}px`);
+  btn.style.setProperty('--ry', `${e.clientY - rect.top}px`);
+});
 
-  requestAnimationFrame(() => {
-    toast.classList.add('toast--visible');
-    setTimeout(() => {
-      toast.classList.remove('toast--visible');
-      setTimeout(() => toast.remove(), 260);
-    }, 1400);
+/* When vote returns, pop + flash the right counter (hook into your existing AJAX) */
+// Find the place where you set upEl/dnEl.textContent after a vote.
+// Immediately after updating numbers, add:
+function animateVote(id, type){
+  const el = document.getElementById(`${type === 'up' ? 'up' : 'down'}_${id}`);
+  if (!el) return;
+  el.classList.remove('count-pop','count-up','count-down');
+  // force reflow to restart animation
+  void el.offsetWidth;
+  el.classList.add('count-pop', type==='up' ? 'count-up' : 'count-down');
+}
+/* AJAX compose: submit without reload, prepend new message with animation */
+const compose = document.getElementById('composeForm');
+if (compose){
+  compose.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const data = new FormData(compose);
+    try{
+      const res = await fetch(location.pathname + location.search, {
+        method: 'POST',
+        headers: { 'X-Requested-With':'fetch' },
+        body: data
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      if (!json.ok || !json.message) return;
+
+      // Build the new message HTML (keeps your structure)
+      const m = json.message;
+      const html = `
+        <article class="msg reveal show" id="msg_${m.id}">
+          <div class="msg-head">
+            <span class="badge">${escapeHtml(m.nickname)}</span>
+            <span class="time">${escapeHtml(m.created_at)}</span>
+
+            <form method="post" action="" class="actions" style="margin-left:auto;">
+              <input type="hidden" name="id" value="${m.id}">
+              <input type="hidden" name="type" value="up">
+              <input type="hidden" name="action" value="react">
+              <input type="hidden" name="csrf" value="${document.querySelector('input[name="csrf"]').value}">
+              <button class="btn-outline" data-react="up" data-id="${m.id}">▲ <span id="up_${m.id}">${m.upvotes ?? 0}</span></button>
+            </form>
+            <form method="post" action="" class="actions">
+              <input type="hidden" name="id" value="${m.id}">
+              <input type="hidden" name="type" value="down">
+              <input type="hidden" name="action" value="react">
+              <input type="hidden" name="csrf" value="${document.querySelector('input[name="csrf"]').value}">
+              <button class="btn-outline" data-react="down" data-id="${m.id}">▼ <span id="down_${m.id}">${m.downvotes ?? 0}</span></button>
+            </form>
+            <button class="btn-danger" data-delete data-id="${m.id}" data-snippet="${escapeHtml(m.body).slice(0,60)}">Delete</button>
+          </div>
+          <p>${nl2br(escapeHtml(m.body))}</p>
+        </article>
+      `;
+
+      const listCard = document.querySelector('.card:nth-of-type(2) .msg')?.parentElement // section containing messages
+                    || document.querySelector('.card:nth-of-type(2)'); // fallback
+      const container = listCard?.querySelector('.msg') ? listCard : document.querySelector('.card:nth-of-type(2)');
+
+      const section = container.querySelector('section') || container; // adapt to your markup
+      (section || container).insertAdjacentHTML('afterbegin', html);
+
+      // reset composer + little toast
+      compose.reset();
+      const hint = document.getElementById('countHint'); if (hint) hint.textContent = '0 / 240';
+      showToast('Posted!');
+
+    }catch(err){
+      console.error('Add failed:', err);
+      showToast('Could not post', true);
+    }
   });
 }
 
-function renderComment(comment) {
-  if (!comment) return '';
-  const nick = htmlUtils.escape(comment.nickname ?? 'Anon');
-  const created = htmlUtils.escape(comment.created_at ?? '');
-  const body = htmlUtils.nl2br(htmlUtils.escape(comment.body ?? ''));
-  return `
-    <article class="comment" data-comment-id="${comment.id}">
-      <header class="comment-head">
-        <span class="badge badge-comment">${nick}</span>
-        <span class="time">${created}</span>
-      </header>
-      <p>${body}</p>
-    </article>
+// helpers for HTML injection
+function escapeHtml(s=''){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function nl2br(s=''){ return s.replace(/\n/g,'<br>'); }
+
+// tiny toast
+function showToast(text, danger=false){
+  const t = document.createElement('div');
+  t.textContent = text;
+  t.style.cssText = `
+    position:fixed; left:50%; top:18px; transform:translateX(-50%);
+    background:${danger?'rgba(255,107,107,.95)':'rgba(61,220,151,.95)'};
+    color:#0b0d12; padding:10px 14px; border-radius:10px; z-index:9999; box-shadow:0 10px 30px rgba(0,0,0,.35);
   `;
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(()=>t.remove(), 400); }, 900);
 }
 
-function renderComments(comments) {
-  if (!Array.isArray(comments) || comments.length === 0) {
-    return '<p class="comment-empty muted">No comments yet.</p>';
-  }
-  return comments.map(renderComment).join('');
-}
-
-function renderMessage(message) {
-  if (!message) return '';
-  const csrf = document.querySelector('input[name="csrf"]')?.value ?? '';
-  const communityName = htmlUtils.escape(message.community_name ?? 'General');
-  const communitySlug = htmlUtils.escape(message.community_slug ?? 'general');
-  const nickname = htmlUtils.escape(message.nickname ?? 'Anon');
-  const created = htmlUtils.escape(message.created_at ?? '');
-  const body = htmlUtils.nl2br(htmlUtils.escape(message.body ?? ''));
-  const upvotes = Number.parseInt(message.upvotes ?? 0, 10) || 0;
-  const downvotes = Number.parseInt(message.downvotes ?? 0, 10) || 0;
-
-  const csrfField = csrf ? `<input type="hidden" name="csrf" value="${csrf}">` : '';
-
-  return `
-    <article class="msg reveal show" id="msg_${message.id}" data-community="${communitySlug}">
-      <div class="msg-head">
-        <span class="badge">${nickname}</span>
-        <span class="community-tag" data-community="${communitySlug}">r/${communityName}</span>
-        <span class="time">${created}</span>
-        <form method="post" action="" class="actions" style="margin-left:auto;">
-          <input type="hidden" name="id" value="${message.id}">
-          <input type="hidden" name="type" value="up">
-          <input type="hidden" name="action" value="react">
-          ${csrfField}
-          <button class="btn-outline" data-react="up" data-id="${message.id}">▲ <span id="up_${message.id}">${upvotes}</span></button>
-        </form>
-        <form method="post" action="" class="actions">
-          <input type="hidden" name="id" value="${message.id}">
-          <input type="hidden" name="type" value="down">
-          <input type="hidden" name="action" value="react">
-          ${csrfField}
-          <button class="btn-outline" data-react="down" data-id="${message.id}">▼ <span id="down_${message.id}">${downvotes}</span></button>
-        </form>
-        <button class="btn-danger" data-delete data-id="${message.id}" data-snippet="${body.replace(/<br>/g, ' ').slice(0, 60)}">Delete</button>
-      </div>
-      <p>${body}</p>
-      <section class="comments" data-message="${message.id}">
-        <h3 class="comments-title">Comments</h3>
-        <div class="comments-list" id="comments_${message.id}">
-          ${renderComments(message.comments)}
-        </div>
-        <form method="post" action="" class="comment-form" data-message-id="${message.id}">
-          <div class="row">
-            <input type="text" name="nick" placeholder="Alias" maxlength="60" required>
-            <button class="btn-outline">Comment</button>
-          </div>
-          <textarea name="body" placeholder="Share your take…" maxlength="240" required rows="3"></textarea>
-          ${csrfField}
-          <input type="hidden" name="message_id" value="${message.id}">
-          <input type="hidden" name="action" value="comment">
-        </form>
-      </section>
-    </article>
-  `;
-}
-
-function hydrateCommentList(list, commentMarkup) {
-  if (!list) return;
-  const empty = list.querySelector('.comment-empty');
-  if (empty) empty.remove();
-  list.insertAdjacentHTML('beforeend', commentMarkup);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const doc = document;
-
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  // Theme picker with localStorage persistence.
-  const picker = doc.getElementById('themePicker');
-  const setTheme = (value) => {
-    if (!value) return;
-    document.body.setAttribute('data-theme', value);
-    try {
-      localStorage.setItem('theme', value);
-    } catch (_) {
-      /* ignore quota errors */
-    }
-  };
-
-  let savedTheme = 'dark';
-  try {
-    savedTheme = localStorage.getItem('theme') || savedTheme;
-  } catch (_) {
-    savedTheme = 'dark';
-  }
-  setTheme(savedTheme);
+  setTheme(saved);
   if (picker) {
     picker.value = savedTheme;
     picker.addEventListener('change', () => setTheme(picker.value));

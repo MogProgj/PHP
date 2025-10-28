@@ -90,6 +90,7 @@
             <button class="btn-outline">Apply</button>
           </form>
 
+<<<<<<< HEAD
           <div id="messageList">
             <?php if (empty($messages)): ?>
               <div class="msg msg-empty"><p>No posts<?= !empty($q) ? ' for “' . htmlspecialchars($q) . '”' : '' ?> yet.</p></div>
@@ -151,6 +152,75 @@
             <?php endforeach; endif; ?>
           </div>
 
+=======
+          <!-- List -->
+          <div id="messageList">
+          <?php if (empty($messages)): ?>
+            <div class="msg msg-empty"><p>No posts<?= !empty($q) ? ' for “'.htmlspecialchars($q).'”' : '' ?> yet.</p></div>
+          <?php else: foreach ($messages as $m): ?>
+            <article class="msg" id="msg_<?= (int)$m['id'] ?>">
+              <div class="msg-head">
+                <span class="badge"><?= htmlspecialchars($m['nickname']) ?></span>
+                <span class="time"><?= htmlspecialchars($m['created_at']) ?></span>
+
+                <!-- Votes -->
+                <form method="post" action="" class="actions" style="margin-left:auto;">
+  <input type="hidden" name="id" value="<?= (int)$m['id'] ?>">
+  <input type="hidden" name="type" value="up">
+  <input type="hidden" name="action" value="react">
+  <?= csrf_field() ?>
+  <button class="btn-outline" data-react="up" data-id="<?= (int)$m['id'] ?>">▲ <span id="up_<?= (int)$m['id'] ?>"><?= (int)($m['upvotes'] ?? 0) ?></span></button>
+</form>
+<form method="post" action="" class="actions">
+  <input type="hidden" name="id" value="<?= (int)$m['id'] ?>">
+  <input type="hidden" name="type" value="down">
+  <input type="hidden" name="action" value="react">
+  <?= csrf_field() ?>
+  <button class="btn-outline" data-react="down" data-id="<?= (int)$m['id'] ?>">▼ <span id="down_<?= (int)$m['id'] ?>"><?= (int)($m['downvotes'] ?? 0) ?></span></button>
+</form>
+
+
+                <!-- Delete trigger (opens modal) -->
+                <button class="btn-danger" data-delete
+                        data-id="<?= (int)$m['id'] ?>"
+                        data-snippet="<?= htmlspecialchars(mb_strimwidth($m['body'],0,60,'…')) ?>">
+                  Delete
+                </button>
+              </div>
+              <p><?= nl2br(htmlspecialchars($m['body'])) ?></p>
+              <?php $comments = $m['comments'] ?? []; ?>
+              <section class="comments" data-message="<?= (int)$m['id'] ?>">
+                <h3 class="comments-title">Comments</h3>
+                <div class="comments-list" id="comments_<?= (int)$m['id'] ?>">
+                  <?php if (empty($comments)): ?>
+                    <p class="comment-empty muted">No comments yet.</p>
+                  <?php else: foreach ($comments as $c): ?>
+                    <article class="comment" data-comment-id="<?= (int)$c['id'] ?>">
+                      <header class="comment-head">
+                        <span class="badge badge-comment"><?= htmlspecialchars($c['nickname']) ?></span>
+                        <span class="time"><?= htmlspecialchars($c['created_at']) ?></span>
+                      </header>
+                      <p><?= nl2br(htmlspecialchars($c['body'])) ?></p>
+                    </article>
+                  <?php endforeach; endif; ?>
+                </div>
+                <form method="post" action="" class="comment-form" data-message-id="<?= (int)$m['id'] ?>">
+                  <div class="row">
+                    <input type="text" name="nick" placeholder="Alias" maxlength="60" required>
+                    <button class="btn-outline">Comment</button>
+                  </div>
+                  <textarea name="body" placeholder="Share your take…" maxlength="240" required rows="3"></textarea>
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="message_id" value="<?= (int)$m['id'] ?>">
+                  <input type="hidden" name="action" value="comment">
+                </form>
+              </section>
+            </article>
+          <?php endforeach; endif; ?>
+          </div>
+
+          <!-- Pager -->
+>>>>>>> origin/main
           <?php if (($pages ?? 1) > 1): ?>
             <nav class="pager">
               <?php
