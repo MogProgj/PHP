@@ -1,0 +1,109 @@
+/* assets/animations.css */
+
+:root {
+  --toast-transition: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  top: 18px;
+  transform: translate(-50%, -12px) scale(0.92);
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  transition: opacity 200ms var(--toast-transition), transform 200ms var(--toast-transition);
+  z-index: 9999;
+}
+
+.toast--visible {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.toast--ok {
+  background: rgba(61, 220, 151, 0.95);
+  color: #04140d;
+}
+
+.toast--danger {
+  background: rgba(255, 107, 107, 0.95);
+  color: #2d0505;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 300ms ease, transform 360ms ease;
+}
+
+.reveal.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.msg--focused {
+  box-shadow: 0 18px 40px rgba(18, 22, 28, 0.45);
+  transform: translateY(-2px);
+  transition: transform 160ms ease, box-shadow 200ms ease;
+}
+
+#ambientCanvas {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.ambient-bubble {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+  mix-blend-mode: screen;
+  opacity: 0.16;
+  filter: blur(0.5px);
+}
+
+.ambient-bubble--1 { opacity: 0.22; }
+.ambient-bubble--2 { opacity: 0.18; }
+
+[data-community-ticker] {
+  display: grid;
+  gap: 4px;
+}
+
+[data-community-ticker] li {
+  list-style: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+[data-community-ticker] li.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.count-limit {
+  color: #facc15;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .toast,
+  .msg--focused,
+  [data-community-ticker] li {
+    transition: none;
+    transform: none !important;
+  }
+
+  #ambientCanvas {
+    display: none;
+  }
+}
