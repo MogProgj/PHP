@@ -1,0 +1,26 @@
+[
+  {
+    "community": "general",
+    "posts": 12,
+    "comments": 34,
+    "window_start": "2025-10-21T00:00:00Z"
+  },
+  {
+    "community": "deepstate",
+    "posts": 18,
+    "comments": 52,
+    "window_start": "2025-10-21T00:00:00Z"
+  },
+  {
+    "community": "cryptids",
+    "posts": 9,
+    "comments": 27,
+    "window_start": "2025-10-21T00:00:00Z"
+  },
+  {
+    "community": "technomyth",
+    "posts": 4,
+    "comments": 19,
+    "window_start": "2025-10-21T00:00:00Z"
+  }
+]

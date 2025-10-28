@@ -32,7 +32,7 @@ function animateVote(id, type){
   el.classList.add('count-pop', type==='up' ? 'count-up' : 'count-down');
 }
 /* AJAX compose: submit without reload, prepend new message with animation */
-const compose = document.querySelector('#composeForm, #composerForm');
+const compose = document.getElementById('composeForm');
 if (compose){
   compose.addEventListener('submit', async (e)=>{
     e.preventDefault();
@@ -49,13 +49,38 @@ if (compose){
 
       // Build the new message HTML (keeps your structure)
       const m = json.message;
-      const list = document.getElementById('messageList');
-      if (list){
-        m.comments = m.comments || [];
-        list.insertAdjacentHTML('afterbegin', renderMessage(m));
-        const empty = list.querySelector('.msg-empty');
-        if (empty) empty.remove();
-      }
+      const html = `
+        <article class="msg reveal show" id="msg_${m.id}">
+          <div class="msg-head">
+            <span class="badge">${escapeHtml(m.nickname)}</span>
+            <span class="time">${escapeHtml(m.created_at)}</span>
+
+            <form method="post" action="" class="actions" style="margin-left:auto;">
+              <input type="hidden" name="id" value="${m.id}">
+              <input type="hidden" name="type" value="up">
+              <input type="hidden" name="action" value="react">
+              <input type="hidden" name="csrf" value="${document.querySelector('input[name="csrf"]').value}">
+              <button class="btn-outline" data-react="up" data-id="${m.id}">▲ <span id="up_${m.id}">${m.upvotes ?? 0}</span></button>
+            </form>
+            <form method="post" action="" class="actions">
+              <input type="hidden" name="id" value="${m.id}">
+              <input type="hidden" name="type" value="down">
+              <input type="hidden" name="action" value="react">
+              <input type="hidden" name="csrf" value="${document.querySelector('input[name="csrf"]').value}">
+              <button class="btn-outline" data-react="down" data-id="${m.id}">▼ <span id="down_${m.id}">${m.downvotes ?? 0}</span></button>
+            </form>
+            <button class="btn-danger" data-delete data-id="${m.id}" data-snippet="${escapeHtml(m.body).slice(0,60)}">Delete</button>
+          </div>
+          <p>${nl2br(escapeHtml(m.body))}</p>
+        </article>
+      `;
+
+      const listCard = document.querySelector('.card:nth-of-type(2) .msg')?.parentElement // section containing messages
+                    || document.querySelector('.card:nth-of-type(2)'); // fallback
+      const container = listCard?.querySelector('.msg') ? listCard : document.querySelector('.card:nth-of-type(2)');
+
+      const section = container.querySelector('section') || container; // adapt to your markup
+      (section || container).insertAdjacentHTML('afterbegin', html);
 
       // reset composer + little toast
       compose.reset();
@@ -72,114 +97,6 @@ if (compose){
 // helpers for HTML injection
 function escapeHtml(s=''){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function nl2br(s=''){ return s.replace(/\n/g,'<br>'); }
-function renderComment(comment){
-  if (!comment) return '';
-  return `
-    <article class="comment" data-comment-id="${comment.id}">
-      <header class="comment-head">
-        <span class="badge badge-comment">${escapeHtml(comment.nickname)}</span>
-        <span class="time">${escapeHtml(comment.created_at)}</span>
-      </header>
-      <p>${nl2br(escapeHtml(comment.body))}</p>
-    </article>
-  `;
-}
-function renderComments(comments){
-  if (!Array.isArray(comments) || comments.length === 0){
-    return '<p class="comment-empty muted">No comments yet.</p>';
-  }
-  return comments.map(renderComment).join('');
-}
-function renderMessage(m){
-  const csrf = document.querySelector('input[name="csrf"]')?.value || '';
-  return `
-    <article class="msg reveal show" id="msg_${m.id}">
-      <div class="msg-head">
-        <span class="badge">${escapeHtml(m.nickname)}</span>
-        <span class="time">${escapeHtml(m.created_at)}</span>
-
-        <form method="post" action="" class="actions" style="margin-left:auto;">
-          <input type="hidden" name="id" value="${m.id}">
-          <input type="hidden" name="type" value="up">
-          <input type="hidden" name="action" value="react">
-          ${csrf ? `<input type="hidden" name="csrf" value="${csrf}">` : ''}
-          <button class="btn-outline" data-react="up" data-id="${m.id}">▲ <span id="up_${m.id}">${m.upvotes ?? 0}</span></button>
-        </form>
-        <form method="post" action="" class="actions">
-          <input type="hidden" name="id" value="${m.id}">
-          <input type="hidden" name="type" value="down">
-          <input type="hidden" name="action" value="react">
-          ${csrf ? `<input type="hidden" name="csrf" value="${csrf}">` : ''}
-          <button class="btn-outline" data-react="down" data-id="${m.id}">▼ <span id="down_${m.id}">${m.downvotes ?? 0}</span></button>
-        </form>
-        <button class="btn-danger" data-delete data-id="${m.id}" data-snippet="${escapeHtml(m.body).slice(0,60)}">Delete</button>
-      </div>
-      <p>${nl2br(escapeHtml(m.body))}</p>
-      <section class="comments" data-message="${m.id}">
-        <h3 class="comments-title">Comments</h3>
-        <div class="comments-list" id="comments_${m.id}">
-          ${renderComments(m.comments)}
-        </div>
-        <form method="post" action="" class="comment-form" data-message-id="${m.id}">
-          <div class="row">
-            <input type="text" name="nick" placeholder="Alias" maxlength="60" required>
-            <button class="btn-outline">Comment</button>
-          </div>
-          <textarea name="body" placeholder="Share your take…" maxlength="240" required rows="3"></textarea>
-          ${csrf ? `<input type="hidden" name="csrf" value="${csrf}">` : ''}
-          <input type="hidden" name="message_id" value="${m.id}">
-          <input type="hidden" name="action" value="comment">
-        </form>
-      </section>
-    </article>
-  `;
-}
-
-document.addEventListener('submit', async (event) => {
-  const form = event.target;
-  if (!(form instanceof HTMLFormElement) || !form.classList.contains('comment-form')) return;
-  event.preventDefault();
-
-  const data = new FormData(form);
-  const body = (data.get('body') || '').toString().trim();
-  if (body === '') {
-    showToast('Comment cannot be empty', true);
-    return;
-  }
-
-  const button = form.querySelector('button');
-  if (button) button.disabled = true;
-
-  try {
-    const res = await fetch(location.pathname + location.search, {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'fetch' },
-      body: data
-    });
-    const list = form.closest('.comments')?.querySelector('.comments-list');
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || 'Request failed');
-    }
-    const json = await res.json();
-    if (!json.ok || !json.comment) {
-      throw new Error(json.error || 'Unable to save comment');
-    }
-    if (list) {
-      const empty = list.querySelector('.comment-empty');
-      if (empty) empty.remove();
-      list.insertAdjacentHTML('beforeend', renderComment(json.comment));
-    }
-    const textarea = form.querySelector('textarea[name="body"]');
-    if (textarea) textarea.value = '';
-    showToast('Comment posted!');
-  } catch (err) {
-    console.error('Comment failed:', err);
-    showToast('Could not post comment', true);
-  } finally {
-    if (button) button.disabled = false;
-  }
-});
 
 // tiny toast
 function showToast(text, danger=false){
@@ -196,94 +113,162 @@ function showToast(text, danger=false){
 
   setTheme(saved);
   if (picker) {
-    picker.value = saved;
+    picker.value = savedTheme;
     picker.addEventListener('change', () => setTheme(picker.value));
   }
 
-  /* ------------------ AJAX REACT (no scroll / no reload) ------------------ */
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('button[data-react]');
-    if (!btn) return;
+  // Button ripple anchor (only runs when not reduced motion)
+  if (!prefersReducedMotion) {
+    doc.addEventListener('pointerdown', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      button.style.setProperty('--rx', `${event.clientX - rect.left}px`);
+      button.style.setProperty('--ry', `${event.clientY - rect.top}px`);
+    }, { passive: true });
+  }
 
-    e.preventDefault();
-    const form = btn.closest('form');
-    if (!form) return;
+  // Composer AJAX submit
+  const composer = doc.getElementById('composerForm');
+  if (composer) {
+    composer.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(composer);
+      try {
+        const response = await fetch(location.pathname + location.search, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'fetch' },
+          body: data
+        });
+        if (!response.ok) throw new Error(await response.text());
+        const payload = await response.json();
+        if (!payload.ok || !payload.message) return;
+
+        const messageList = doc.getElementById('messageList');
+        if (messageList) {
+          payload.message.comments = payload.message.comments || [];
+          messageList.insertAdjacentHTML('afterbegin', renderMessage(payload.message));
+          const empty = messageList.querySelector('.msg-empty');
+          if (empty) empty.remove();
+        }
+
+        composer.reset();
+        const hint = doc.getElementById('countHint');
+        if (hint) hint.textContent = '0 / 240';
+        showToast('Posted!');
+      } catch (error) {
+        console.error('Add failed:', error);
+        showToast('Could not post', true);
+      }
+    });
+  }
+
+  // Comment submission (delegated)
+  doc.addEventListener('submit', async (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.classList.contains('comment-form')) {
+      return;
+    }
+    event.preventDefault();
 
     const data = new FormData(form);
-    const id   = btn.dataset.id;
+    const body = (data.get('body') || '').toString().trim();
+    if (!body) {
+      showToast('Comment cannot be empty', true);
+      return;
+    }
+
+    const button = form.querySelector('button');
+    if (button) button.disabled = true;
 
     try {
-      const res = await fetch(location.pathname + location.search, {
+      const response = await fetch(location.pathname + location.search, {
         method: 'POST',
         headers: { 'X-Requested-With': 'fetch' },
         body: data
       });
-      if (!res.ok) throw new Error(await res.text());
-      const json = await res.json();
-      if (json.ok) {
-        const upEl = document.getElementById(`up_${id}`);
-        const dnEl = document.getElementById(`down_${id}`);
-        if (upEl) upEl.textContent = json.upvotes;
-        if (dnEl) dnEl.textContent = json.downvotes;
-        btn.animate([{ transform: 'scale(0.96)' }, { transform: 'scale(1)' }], { duration: 120, easing: 'ease-out' });
-      }
-    } catch (err) {
-      console.error('Vote failed:', err);
+      if (!response.ok) throw new Error(await response.text());
+      const payload = await response.json();
+      if (!payload.ok || !payload.comment) throw new Error(payload.error || 'Unable to save comment');
+      const list = form.closest('.comments')?.querySelector('.comments-list');
+      if (list) hydrateCommentList(list, renderComment(payload.comment));
+      const textarea = form.querySelector('textarea[name="body"]');
+      if (textarea) textarea.value = '';
+      showToast('Comment posted!');
+    } catch (error) {
+      console.error('Comment failed:', error);
+      showToast('Could not post comment', true);
+    } finally {
+      if (button) button.disabled = false;
     }
   });
 
-  /* ------------------ Delete modal (open/close) ------------------ */
-  const modal     = document.querySelector('#deleteModal');
-  const modalForm = document.querySelector('#deleteForm');
-  const modalMsg  = document.querySelector('#deletePreview');
+  // Voting (delegated)
+  doc.addEventListener('click', async (event) => {
+    const button = event.target.closest('button[data-react]');
+    if (!button) return;
+    event.preventDefault();
+    const form = button.closest('form');
+    if (!form) return;
+    const data = new FormData(form);
+    const id = button.dataset.id;
 
-  document.addEventListener('click', (e) => {
-    const openBtn = e.target.closest('[data-delete]');
-    if (openBtn && modal && modalForm && modalMsg) {
-      e.preventDefault();
-      modalMsg.textContent = openBtn.dataset.snippet || '';
-      modalForm.querySelector('input[name="id"]').value = openBtn.dataset.id || '';
+    try {
+      const response = await fetch(location.pathname + location.search, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: data
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const payload = await response.json();
+      if (!payload.ok) return;
+      const upEl = doc.getElementById(`up_${id}`);
+      const downEl = doc.getElementById(`down_${id}`);
+      if (upEl) upEl.textContent = payload.upvotes;
+      if (downEl) downEl.textContent = payload.downvotes;
+      if (!prefersReducedMotion) {
+        button.animate([{ transform: 'scale(0.94)' }, { transform: 'scale(1)' }], { duration: 160, easing: 'ease-out' });
+      }
+    } catch (error) {
+      console.error('Vote failed:', error);
+    }
+  });
+
+  // Delete modal open/close
+  const modal = doc.getElementById('deleteModal');
+  const modalForm = doc.getElementById('deleteForm');
+  const modalMsg = doc.getElementById('deletePreview');
+  doc.addEventListener('click', (event) => {
+    const openButton = event.target.closest('[data-delete]');
+    if (openButton && modal && modalForm && modalMsg) {
+      event.preventDefault();
+      modalMsg.textContent = openButton.dataset.snippet || '';
+      const hidden = modalForm.querySelector('input[name="id"]');
+      if (hidden) hidden.value = openButton.dataset.id || '';
       modal.classList.add('open');
     }
-
-    if (e.target.closest('[data-close]')) {
+    if (event.target.closest('[data-close]')) {
       if (modal) modal.classList.remove('open');
     }
   });
 
-  /* ------------------ Flash auto-hide ------------------ */
-  const flash = document.querySelector('.flash');
+  // Flash auto-hide
+  const flash = doc.querySelector('.flash');
   if (flash) setTimeout(() => (flash.style.display = 'none'), 2500);
 
-  /* ------------------ Search: clear shows all + Esc clears ------------------ */
-  const qInput = document.querySelector('input[name="q"]');
-  if (qInput) {
+  // Search helpers
+  const searchInput = doc.querySelector('input[name="q"]');
+  if (searchInput) {
     const base = location.pathname || '';
-    qInput.addEventListener('input', () => {
-      if (qInput.value.trim() === '') location.href = base; // show everything
+    searchInput.addEventListener('input', () => {
+      if (searchInput.value.trim() === '') location.href = base;
     });
-    qInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { qInput.value = ''; location.href = base; }
+    searchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        searchInput.value = '';
+        location.href = base;
+      }
     });
   }
-
-  /* ------------------ Reveal-on-scroll (optional polish) ------------------ */
-  const rev = document.querySelectorAll('.reveal');
-  if (rev.length) {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((en) => { if (en.isIntersecting) en.target.classList.add('show'); });
-    }, { threshold: .12 });
-    rev.forEach((el) => io.observe(el));
-  }
-}
-);// Reveal-on-scroll
-const revealEls = document.querySelectorAll('.reveal');
-if (revealEls.length) {
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach((en) => {
-      if (en.isIntersecting) en.target.classList.add('show');
-    });
-  }, { threshold: 0.12 });
-  revealEls.forEach((el) => io.observe(el));
-}
+});
 
